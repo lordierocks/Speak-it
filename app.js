@@ -419,9 +419,9 @@ class SpeakItApp {
      * Stop recording completely (audio + speech)
      */
     stopRecordingCompletely() {
-        // Stop audio processor
-        if (this.audioProcessor.isRecording) {
-            this.audioProcessor.pauseRecording();
+        // Stop audio processor completely (not just pause)
+        if (this.audioProcessor.isRecording || this.audioProcessor.isPaused) {
+            this.audioProcessor.stopRecording();
         }
 
         // Stop speech recognition
@@ -431,6 +431,10 @@ class SpeakItApp {
 
         // Stop listening messages
         this.stopListeningMessages();
+
+        // Reset recording flag
+        this.audioProcessor.isRecording = false;
+        this.audioProcessor.isPaused = false;
     }
 
     /**
