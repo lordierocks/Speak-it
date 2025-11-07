@@ -15,12 +15,13 @@ class SpeakItApp {
         this.sessionManager = new SessionManager();
 
         // UI state
-        this.state = 'idle'; // idle, listening, paused
+        this.state = 'idle'; // idle, listening, paused, viewing
         this.currentMicrophoneId = null;
         this.availableDevices = [];
         this.lastPauseTranscript = ''; // For cancel functionality
         this.currentEditingSessionId = null; // For three-dot menu
         this.isTranscribing = false; // Track if currently transcribing a line
+        this.hasEverPaused = false; // Track if session has been paused
 
         // Fun listening messages
         this.listeningMessages = [
@@ -299,7 +300,11 @@ class SpeakItApp {
      * Handle central mic button click
      */
     handleCentralMicClick() {
-        if (this.state === 'idle') {
+        if (this.state === 'idle' || this.state === 'viewing') {
+            // If viewing, start a new session first
+            if (this.state === 'viewing') {
+                this.handleNewSession();
+            }
             this.startRecording();
         } else if (this.state === 'listening') {
             this.pauseRecording();
@@ -347,6 +352,7 @@ class SpeakItApp {
 
             this.startListeningMessages();
             this.lastPauseTranscript = ''; // Reset cancel checkpoint
+            this.hasEverPaused = false; // Reset pause flag for new recording
 
         } catch (error) {
             console.error('Error starting recording:', error);
@@ -364,6 +370,7 @@ class SpeakItApp {
 
         // Save on pause
         this.lastPauseTranscript = this.elements.transcriptionText.textContent;
+        this.hasEverPaused = true;
         this.autoSave();
 
         this.state = 'paused';
@@ -387,13 +394,18 @@ class SpeakItApp {
      * Handle cancel button
      */
     handleCancel() {
-        if (this.lastPauseTranscript) {
-            // Revert to last pause
+        // Stop recording first
+        this.stopRecordingCompletely();
+
+        if (this.hasEverPaused) {
+            // Has been paused before - revert to last pause and resume
             this.updateTranscription(this.lastPauseTranscript);
             this.autoSave();
-            this.resumeRecording();
+            // Don't resume, just go back to paused state
+            this.state = 'paused';
+            this.updateUI();
         } else {
-            // No pause yet, delete the note
+            // Never paused - delete the entire note
             const activeSession = this.sessionManager.getActiveSession();
             if (activeSession) {
                 this.sessionManager.deleteSession(activeSession.id);
@@ -401,6 +413,24 @@ class SpeakItApp {
             }
             this.resetUI();
         }
+    }
+
+    /**
+     * Stop recording completely (audio + speech)
+     */
+    stopRecordingCompletely() {
+        // Stop audio processor
+        if (this.audioProcessor.isRecording) {
+            this.audioProcessor.pauseRecording();
+        }
+
+        // Stop speech recognition
+        if (this.speechRecognition.isListening) {
+            this.speechRecognition.stop();
+        }
+
+        // Stop listening messages
+        this.stopListeningMessages();
     }
 
     /**
@@ -418,7 +448,17 @@ class SpeakItApp {
      * Handle new session button
      */
     handleNewSession() {
-        // Simply reset and start new
+        // Stop any active recording first
+        this.stopRecordingCompletely();
+
+        // Delete current session if it's empty
+        const activeSession = this.sessionManager.getActiveSession();
+        if (activeSession && !activeSession.transcript.trim()) {
+            this.sessionManager.deleteSession(activeSession.id);
+            this.loadSessionsList();
+        }
+
+        // Reset UI
         this.resetUI();
 
         // Close sidebar on mobile
@@ -432,12 +472,29 @@ class SpeakItApp {
      * Load session from list
      */
     loadSession(sessionId) {
+        // Stop any active recording first
+        this.stopRecordingCompletely();
+
+        // Delete current session if it's empty
+        const currentSession = this.sessionManager.getActiveSession();
+        if (currentSession && !currentSession.transcript.trim() && currentSession.id !== sessionId) {
+            this.sessionManager.deleteSession(currentSession.id);
+        }
+
+        // Load the new session
         const result = this.sessionManager.loadSession(sessionId);
 
         if (result.success) {
             this.elements.transcriptionText.textContent = result.session.transcript;
             this.elements.transcriptionDisplay.classList.add('visible');
             this.elements.motto.classList.add('hidden');
+            this.elements.mainBox.classList.remove('recording');
+            this.elements.cancelBtn.classList.remove('visible');
+
+            // Set to viewing state (not idle, not recording)
+            this.state = 'viewing';
+            this.updateUI();
+
             this.loadSessionsList();
         }
     }
@@ -465,6 +522,11 @@ class SpeakItApp {
                 centralMicBtn.classList.remove('recording');
                 recordingStatus.textContent = 'Paused';
                 break;
+
+            case 'viewing':
+                centralMicBtn.classList.remove('recording', 'paused');
+                recordingStatus.textContent = 'Saved session';
+                break;
         }
     }
 
@@ -480,6 +542,7 @@ class SpeakItApp {
         this.elements.cancelBtn.classList.remove('visible');
         this.speechRecognition.clearTranscript();
         this.lastPauseTranscript = '';
+        this.hasEverPaused = false;
         this.updateUI();
     }
 
