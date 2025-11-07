@@ -67,10 +67,10 @@ body {
 /* ==================== Sidebar Toggle Button ==================== */
 .sidebar-toggle {
     position: fixed;
-    top: var(--spacing-lg);
-    left: var(--spacing-lg);
-    width: 2.5rem;
-    height: 2.5rem;
+    top: var(--spacing-md);
+    left: var(--spacing-md);
+    width: 2.25rem;
+    height: 2.25rem;
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
@@ -87,12 +87,11 @@ body {
     background: var(--color-surface-hover);
     border-color: var(--color-border);
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
 }
 
 .sidebar-toggle svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
     color: var(--color-text-secondary);
 }
 
@@ -117,40 +116,41 @@ body {
 }
 
 .sidebar-header {
-    padding: var(--spacing-lg);
+    padding: var(--spacing-md);
+    padding-top: 4rem;
     border-bottom: 1px solid var(--color-border-light);
 }
 
 .new-session-btn {
     width: 100%;
-    padding: var(--spacing-md);
-    background: var(--color-accent);
-    color: white;
-    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: var(--spacing-sm);
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    font-weight: 400;
     transition: all var(--transition-base);
 }
 
 .new-session-btn:hover {
-    background: var(--color-accent-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    background: var(--color-bg-secondary);
+    border-color: var(--color-border);
 }
 
 .new-session-btn svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-text-secondary);
 }
 
 .sidebar-content {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
     height: calc(100vh - 80px);
     overflow-y: auto;
 }
@@ -158,35 +158,37 @@ body {
 .sessions-list {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
 }
 
 .session-item {
     padding: var(--spacing-md);
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border-light);
+    background: transparent;
+    border: none;
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-base);
     position: relative;
+    text-align: left;
+    width: 100%;
 }
 
 .session-item:hover {
     background: var(--color-bg-secondary);
-    border-color: var(--color-border);
-    transform: translateX(2px);
 }
 
 .session-item.active {
-    background: var(--color-accent-light);
-    border-color: var(--color-accent);
+    background: var(--color-bg-tertiary);
 }
 
 .session-item h3 {
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    font-weight: 400;
     color: var(--color-text-primary);
     margin-bottom: var(--spacing-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .session-item p {
@@ -220,8 +222,8 @@ body {
 }
 
 .archive-btn svg {
-    width: 1rem;
-    height: 1rem;
+    width: 0.875rem;
+    height: 0.875rem;
     color: var(--color-text-tertiary);
 }
 
@@ -233,12 +235,35 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     padding: var(--spacing-xl);
+    padding-top: 4rem;
 }
 
 .main-content.sidebar-open {
     margin-left: 15vw;
+}
+
+/* ==================== Transcription Display (Top of page) ==================== */
+.transcription-display {
+    width: 100%;
+    max-width: 900px;
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: var(--spacing-xl);
+    display: none;
+    padding: var(--spacing-lg);
+}
+
+.transcription-display.visible {
+    display: block;
+}
+
+.transcription-text {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 /* ==================== Motto ==================== */
@@ -264,13 +289,13 @@ body {
 /* ==================== Main Box ==================== */
 .main-box {
     width: 80vw;
-    max-width: 900px;
-    min-height: 25vh;
+    max-width: 700px;
+    min-height: 22vh;
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
-    padding: var(--spacing-2xl);
+    padding: var(--spacing-xl);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -285,8 +310,8 @@ body {
     left: 50%;
     transform: translateX(-50%);
     width: calc(80vw - 15vw);
-    min-height: 40vh;
-    justify-content: flex-start;
+    max-width: 700px;
+    min-height: 20vh;
 }
 
 .main-content.sidebar-open .main-box.recording {
@@ -295,10 +320,8 @@ body {
 
 /* ==================== Central Microphone Button ==================== */
 .central-mic-btn {
-    width: 16%;
-    aspect-ratio: 1;
-    min-width: 80px;
-    max-width: 120px;
+    width: 4.5rem;
+    height: 4.5rem;
     background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
     border: none;
     border-radius: var(--radius-full);
@@ -308,7 +331,7 @@ body {
     justify-content: center;
     transition: all var(--transition-base);
     box-shadow: var(--shadow-md);
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
 }
 
 .central-mic-btn:hover {
@@ -330,8 +353,8 @@ body {
 }
 
 .central-mic-btn svg {
-    width: 40%;
-    height: 40%;
+    width: 1.75rem;
+    height: 1.75rem;
     color: white;
     stroke-width: 2.5;
 }
@@ -347,32 +370,30 @@ body {
 
 /* ==================== Status Text ==================== */
 .recording-status {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: var(--color-text-primary);
-    margin-bottom: var(--spacing-md);
-    min-height: 1.5rem;
+    margin-bottom: var(--spacing-sm);
+    min-height: 1.25rem;
     text-align: center;
 }
 
 .mic-status {
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: var(--color-text-tertiary);
-    margin-bottom: var(--spacing-lg);
-    min-height: 1.25rem;
+    margin-bottom: var(--spacing-md);
+    min-height: 1rem;
     text-align: center;
 }
 
 /* ==================== Sound Level Bar ==================== */
 .sound-level-container {
     width: 48%;
-    height: 3%;
-    min-height: 8px;
-    max-height: 12px;
+    height: 8px;
     background: var(--color-bg-secondary);
     border-radius: var(--radius-full);
     overflow: hidden;
-    margin-bottom: var(--spacing-2xl);
+    margin-bottom: var(--spacing-xl);
     box-shadow: inset 0 1px 3px rgba(45, 42, 38, 0.1);
 }
 
@@ -382,27 +403,6 @@ body {
     background: linear-gradient(90deg, var(--color-success), var(--color-accent));
     border-radius: var(--radius-full);
     transition: width 100ms ease-out;
-}
-
-/* ==================== Transcription Area ==================== */
-.transcription-area {
-    width: 100%;
-    flex: 1;
-    overflow-y: auto;
-    margin-bottom: var(--spacing-lg);
-    display: none;
-}
-
-.transcription-area.visible {
-    display: block;
-}
-
-.transcription-text {
-    font-size: 1rem;
-    line-height: 1.75;
-    color: var(--color-text-primary);
-    white-space: pre-wrap;
-    word-wrap: break-word;
 }
 
 /* ==================== Bottom Controls ==================== */
@@ -415,11 +415,14 @@ body {
     gap: var(--spacing-md);
 }
 
+.button-group-left {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
 .icon-btn {
-    width: 16%;
-    aspect-ratio: 1;
-    min-width: 48px;
-    max-width: 64px;
+    width: 2.25rem;
+    height: 2.25rem;
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
@@ -434,42 +437,18 @@ body {
 .icon-btn:hover {
     background: var(--color-surface-hover);
     border-color: var(--color-border);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 .icon-btn svg {
-    width: 50%;
-    height: 50%;
+    width: 1.125rem;
+    height: 1.125rem;
     color: var(--color-text-secondary);
-}
-
-/* Tooltip */
-.icon-btn[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + var(--spacing-sm));
-    left: 50%;
-    transform: translateX(-50%) scale(0.9);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: var(--color-text-primary);
-    color: var(--color-surface);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    border-radius: var(--radius-sm);
-    opacity: 0;
-    pointer-events: none;
-    transition: all var(--transition-fast);
-}
-
-.icon-btn[data-tooltip]:hover::after {
-    opacity: 1;
-    transform: translateX(-50%) scale(1);
 }
 
 /* ==================== Progress Button ==================== */
 .progress-btn {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
@@ -478,19 +457,17 @@ body {
     align-items: center;
     justify-content: center;
     gap: var(--spacing-sm);
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    font-weight: 400;
     color: var(--color-text-primary);
     transition: all var(--transition-base);
-    min-width: 40%;
-    max-width: 40%;
+    min-width: auto;
 }
 
 .progress-btn:hover {
     background: var(--color-surface-hover);
     border-color: var(--color-border);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 .progress-btn.primary {
@@ -505,9 +482,180 @@ body {
 }
 
 .progress-icon {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
     flex-shrink: 0;
+}
+
+/* ==================== Popup Menus ==================== */
+.popup-menu {
+    display: none;
+    position: fixed;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    padding: var(--spacing-xs);
+    min-width: 240px;
+    z-index: 2000;
+    animation: popupSlideIn var(--transition-fast);
+}
+
+.popup-menu.open {
+    display: block;
+}
+
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.popup-menu-item {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    font-size: 0.875rem;
+    color: var(--color-text-primary);
+    transition: all var(--transition-fast);
+    width: 100%;
+    text-align: left;
+    position: relative;
+}
+
+.popup-menu-item:hover {
+    background: var(--color-bg-secondary);
+}
+
+.popup-menu-item svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+
+.popup-menu-item .chevron {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.popup-menu-divider {
+    height: 1px;
+    background: var(--color-border-light);
+    margin: var(--spacing-xs) 0;
+}
+
+.has-submenu {
+    cursor: pointer;
+}
+
+.submenu {
+    left: 100%;
+    top: 0;
+    margin-left: var(--spacing-xs);
+}
+
+.popup-menu-item.selected::after {
+    content: '✓';
+    margin-left: auto;
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+/* Toggle in popup menu */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.toggle-container input[type="checkbox"] {
+    display: none;
+}
+
+.toggle-switch {
+    width: 40px;
+    height: 22px;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-full);
+    position: relative;
+    transition: all var(--transition-base);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-full);
+    background: white;
+    top: 3px;
+    left: 3px;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
+}
+
+input[type="checkbox"]:checked + .toggle-switch {
+    background: var(--color-accent);
+}
+
+input[type="checkbox"]:checked + .toggle-switch::after {
+    left: 21px;
+}
+
+/* Slider in popup menu */
+.slider-container {
+    width: 100%;
+    padding-top: var(--spacing-sm);
+}
+
+.slider-container input[type="range"] {
+    width: 100%;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-secondary);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-fast);
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--color-accent-hover);
+    transform: scale(1.1);
+}
+
+.range-labels, .range-value {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--color-text-tertiary);
+    margin-top: var(--spacing-xs);
+}
+
+.range-value {
+    justify-content: center;
 }
 
 /* ==================== Modals ==================== */
@@ -560,7 +708,7 @@ body {
 }
 
 .modal-header h2 {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 500;
     color: var(--color-text-primary);
 }
@@ -582,8 +730,8 @@ body {
 }
 
 .close-btn svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
     color: var(--color-text-secondary);
 }
 
@@ -591,143 +739,6 @@ body {
     padding: var(--spacing-lg);
     max-height: calc(80vh - 100px);
     overflow-y: auto;
-}
-
-/* ==================== Settings Modal ==================== */
-.setting-item {
-    margin-bottom: var(--spacing-lg);
-}
-
-.setting-item label {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-sm);
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-}
-
-.setting-item input[type="checkbox"] {
-    display: none;
-}
-
-.toggle-switch {
-    width: 48px;
-    height: 26px;
-    background: var(--color-bg-tertiary);
-    border-radius: var(--radius-full);
-    position: relative;
-    transition: all var(--transition-base);
-}
-
-.toggle-switch::after {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border-radius: var(--radius-full);
-    background: white;
-    top: 3px;
-    left: 3px;
-    transition: all var(--transition-base);
-    box-shadow: var(--shadow-sm);
-}
-
-input[type="checkbox"]:checked + .toggle-switch {
-    background: var(--color-accent);
-}
-
-input[type="checkbox"]:checked + .toggle-switch::after {
-    left: 25px;
-}
-
-.setting-item input[type="range"] {
-    width: 100%;
-    height: 6px;
-    border-radius: var(--radius-full);
-    background: var(--color-bg-secondary);
-    outline: none;
-    -webkit-appearance: none;
-}
-
-.setting-item input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: var(--radius-full);
-    background: var(--color-accent);
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition: all var(--transition-fast);
-}
-
-.setting-item input[type="range"]::-webkit-slider-thumb:hover {
-    background: var(--color-accent-hover);
-    transform: scale(1.1);
-}
-
-.range-labels, .range-value {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: var(--color-text-tertiary);
-    margin-top: var(--spacing-xs);
-}
-
-.range-value {
-    justify-content: center;
-}
-
-.mic-select {
-    width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-md);
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    transition: all var(--transition-base);
-}
-
-.mic-select:hover {
-    border-color: var(--color-border);
-}
-
-.mic-select:focus {
-    outline: none;
-    border-color: var(--color-accent);
-}
-
-/* ==================== Export Modal ==================== */
-.export-option-btn {
-    width: 100%;
-    padding: var(--spacing-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
-    transition: all var(--transition-base);
-    margin-bottom: var(--spacing-sm);
-}
-
-.export-option-btn:hover {
-    background: var(--color-surface-hover);
-    border-color: var(--color-border);
-    transform: translateX(4px);
-}
-
-.export-option-btn svg {
-    width: 1.5rem;
-    height: 1.5rem;
-    color: var(--color-text-secondary);
 }
 
 /* ==================== Save Modal ==================== */
@@ -757,8 +768,8 @@ input[type="checkbox"]:checked + .toggle-switch::after {
 .cancel-btn, .confirm-btn {
     padding: var(--spacing-sm) var(--spacing-lg);
     border-radius: var(--radius-md);
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    font-weight: 400;
     cursor: pointer;
     transition: all var(--transition-base);
 }
@@ -787,8 +798,8 @@ input[type="checkbox"]:checked + .toggle-switch::after {
 
 /* ==================== Scrollbar Styling ==================== */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -821,10 +832,5 @@ input[type="checkbox"]:checked + .toggle-switch::after {
     .main-box.recording {
         width: 90vw;
         bottom: var(--spacing-md);
-    }
-
-    .progress-btn {
-        min-width: 50%;
-        max-width: 50%;
     }
 }

@@ -17,6 +17,8 @@ class SpeakItApp {
         // UI state
         this.state = 'idle'; // idle, recording, paused, processing
         this.realtimeTranscription = true;
+        this.currentMicrophoneId = null;
+        this.availableDevices = [];
 
         // Fun listening messages
         this.listeningMessages = [
@@ -70,7 +72,8 @@ class SpeakItApp {
 
         // Populate microphone list
         if (audioResult.devices && audioResult.devices.length > 0) {
-            this.populateMicrophoneList(audioResult.devices);
+            this.availableDevices = audioResult.devices;
+            this.populateMicrophoneSubmenu(audioResult.devices);
         }
 
         // Initialize speech recognition
@@ -123,15 +126,19 @@ class SpeakItApp {
             soundLevelBar: document.getElementById('soundLevelBar'),
 
             // Transcription
-            transcriptionArea: document.getElementById('transcriptionArea'),
+            transcriptionDisplay: document.getElementById('transcriptionDisplay'),
             transcriptionText: document.getElementById('transcriptionText'),
 
             // Sessions
             sessionsList: document.getElementById('sessionsList'),
 
+            // Popup menus
+            settingsPopup: document.getElementById('settingsPopup'),
+            exportPopup: document.getElementById('exportPopup'),
+            microphoneSubmenu: document.getElementById('microphoneSubmenu'),
+            microphoneMenuItem: document.getElementById('microphoneMenuItem'),
+
             // Modals
-            settingsModal: document.getElementById('settingsModal'),
-            exportModal: document.getElementById('exportModal'),
             saveModal: document.getElementById('saveModal'),
             confirmModal: document.getElementById('confirmModal'),
 
@@ -140,7 +147,6 @@ class SpeakItApp {
             vadSensitivity: document.getElementById('vadSensitivity'),
             silenceTimeout: document.getElementById('silenceTimeout'),
             silenceTimeoutValue: document.getElementById('silenceTimeoutValue'),
-            microphoneSelect: document.getElementById('microphoneSelect'),
 
             // Export options
             downloadAudioBtn: document.getElementById('downloadAudioBtn'),
@@ -151,17 +157,13 @@ class SpeakItApp {
             sessionName: document.getElementById('sessionName'),
             confirmSaveBtn: document.getElementById('confirmSaveBtn'),
             cancelSaveBtn: document.getElementById('cancelSaveBtn'),
+            closeSaveBtn: document.getElementById('closeSaveBtn'),
 
             // Confirm modal
             confirmTitle: document.getElementById('confirmTitle'),
             confirmMessage: document.getElementById('confirmMessage'),
             confirmActionBtn: document.getElementById('confirmActionBtn'),
-            cancelConfirmBtn: document.getElementById('cancelConfirmBtn'),
-
-            // Close buttons
-            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
-            closeExportBtn: document.getElementById('closeExportBtn'),
-            closeSaveBtn: document.getElementById('closeSaveBtn')
+            cancelConfirmBtn: document.getElementById('cancelConfirmBtn')
         };
     }
 
@@ -178,13 +180,40 @@ class SpeakItApp {
         // Progress button
         this.elements.progressBtn.addEventListener('click', () => this.handleProgressBtnClick());
 
-        // Settings button
-        this.elements.settingsBtn.addEventListener('click', () => this.openSettings());
-        this.elements.closeSettingsBtn.addEventListener('click', () => this.closeSettings());
+        // Settings button - open popup
+        this.elements.settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePopup(this.elements.settingsPopup, this.elements.settingsBtn);
+        });
 
-        // Export button
-        this.elements.exportBtn.addEventListener('click', () => this.openExport());
-        this.elements.closeExportBtn.addEventListener('click', () => this.closeExport());
+        // Export button - open popup
+        this.elements.exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePopup(this.elements.exportPopup, this.elements.exportBtn);
+        });
+
+        // Microphone menu item - show submenu
+        this.elements.microphoneMenuItem.addEventListener('mouseenter', (e) => {
+            this.showSubmenu(this.elements.microphoneSubmenu, this.elements.microphoneMenuItem);
+        });
+
+        this.elements.microphoneMenuItem.addEventListener('mouseleave', (e) => {
+            // Delay hiding to allow moving to submenu
+            setTimeout(() => {
+                if (!this.elements.microphoneSubmenu.matches(':hover') &&
+                    !this.elements.microphoneMenuItem.matches(':hover')) {
+                    this.hideSubmenu();
+                }
+            }, 200);
+        });
+
+        this.elements.microphoneSubmenu.addEventListener('mouseleave', () => {
+            setTimeout(() => {
+                if (!this.elements.microphoneMenuItem.matches(':hover')) {
+                    this.hideSubmenu();
+                }
+            }, 200);
+        });
 
         // New session button
         this.elements.newSessionBtn.addEventListener('click', () => this.handleNewSession());
@@ -204,14 +233,21 @@ class SpeakItApp {
             this.audioProcessor.setSilenceTimeout(parseFloat(e.target.value));
         });
 
-        this.elements.microphoneSelect.addEventListener('change', (e) => {
-            this.audioProcessor.switchMicrophone(e.target.value);
+        // Export options
+        this.elements.downloadAudioBtn.addEventListener('click', () => {
+            this.downloadAudio();
+            this.closeAllPopups();
         });
 
-        // Export options
-        this.elements.downloadAudioBtn.addEventListener('click', () => this.downloadAudio());
-        this.elements.downloadTextBtn.addEventListener('click', () => this.downloadText());
-        this.elements.copyTextBtn.addEventListener('click', () => this.copyToClipboard());
+        this.elements.downloadTextBtn.addEventListener('click', () => {
+            this.downloadText();
+            this.closeAllPopups();
+        });
+
+        this.elements.copyTextBtn.addEventListener('click', () => {
+            this.copyToClipboard();
+            this.closeAllPopups();
+        });
 
         // Save modal
         this.elements.confirmSaveBtn.addEventListener('click', () => this.confirmSave());
@@ -221,9 +257,15 @@ class SpeakItApp {
         // Confirm modal
         this.elements.cancelConfirmBtn.addEventListener('click', () => this.closeConfirm());
 
+        // Close popups when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.popup-menu') && !e.target.closest('.icon-btn')) {
+                this.closeAllPopups();
+            }
+        });
+
         // Close modals on outside click
-        [this.elements.settingsModal, this.elements.exportModal,
-         this.elements.saveModal, this.elements.confirmModal].forEach(modal => {
+        [this.elements.saveModal, this.elements.confirmModal].forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     modal.classList.remove('open');
@@ -234,6 +276,7 @@ class SpeakItApp {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                this.closeAllPopups();
                 this.closeAllModals();
             }
         });
@@ -255,7 +298,7 @@ class SpeakItApp {
         };
 
         this.speechRecognition.onError = (error) => {
-            this.showError(error);
+            console.error('Speech recognition error:', error);
         };
     }
 
@@ -266,6 +309,58 @@ class SpeakItApp {
         this.audioProcessor.onAudioLevel = (level) => {
             this.updateSoundLevel(level);
         };
+    }
+
+    /**
+     * Toggle popup menu
+     */
+    togglePopup(popup, button) {
+        const isOpen = popup.classList.contains('open');
+
+        // Close all popups first
+        this.closeAllPopups();
+
+        if (!isOpen) {
+            // Position popup below button
+            const rect = button.getBoundingClientRect();
+            popup.style.top = `${rect.bottom + 8}px`;
+            popup.style.left = `${rect.left}px`;
+            popup.classList.add('open');
+        }
+    }
+
+    /**
+     * Show submenu
+     */
+    showSubmenu(submenu, parentItem) {
+        const rect = parentItem.getBoundingClientRect();
+        submenu.style.top = `${rect.top}px`;
+        submenu.style.left = `${rect.right + 8}px`;
+        submenu.classList.add('open');
+    }
+
+    /**
+     * Hide submenu
+     */
+    hideSubmenu() {
+        this.elements.microphoneSubmenu.classList.remove('open');
+    }
+
+    /**
+     * Close all popups
+     */
+    closeAllPopups() {
+        document.querySelectorAll('.popup-menu').forEach(popup => {
+            popup.classList.remove('open');
+        });
+    }
+
+    /**
+     * Close all modals
+     */
+    closeAllModals() {
+        this.closeSave();
+        this.closeConfirm();
     }
 
     /**
@@ -304,32 +399,45 @@ class SpeakItApp {
      * Start recording
      */
     async startRecording() {
-        // Create new session
-        this.sessionManager.createSession();
+        try {
+            // Create new session
+            this.sessionManager.createSession();
 
-        // Hide motto
-        this.elements.motto.classList.add('hidden');
+            // Hide motto
+            this.elements.motto.classList.add('hidden');
 
-        // Start audio recording
-        this.audioProcessor.startRecording();
+            // Start audio recording
+            const audioResult = this.audioProcessor.startRecording();
+            if (!audioResult.success) {
+                throw new Error('Failed to start audio recording');
+            }
 
-        // Start speech recognition if real-time is enabled
-        if (this.realtimeTranscription) {
-            this.speechRecognition.start();
+            // Start speech recognition if real-time is enabled
+            if (this.realtimeTranscription) {
+                const speechResult = this.speechRecognition.start();
+                if (!speechResult.success) {
+                    console.warn('Speech recognition failed to start:', speechResult.error);
+                }
+            }
+
+            // Update UI state
+            this.state = 'recording';
+            this.updateUI();
+
+            // Move main box to bottom
+            this.elements.mainBox.classList.add('recording');
+
+            // Show transcription area
+            this.elements.transcriptionDisplay.classList.add('visible');
+
+            // Start cycling listening messages
+            this.startListeningMessages();
+
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            this.showError('Failed to start recording: ' + error.message);
+            this.resetUI();
         }
-
-        // Update UI state
-        this.state = 'recording';
-        this.updateUI();
-
-        // Move main box to bottom
-        this.elements.mainBox.classList.add('recording');
-
-        // Show transcription area
-        this.elements.transcriptionArea.classList.add('visible');
-
-        // Start cycling listening messages
-        this.startListeningMessages();
     }
 
     /**
@@ -366,39 +474,63 @@ class SpeakItApp {
      * Stop and process recording
      */
     async stopAndProcess() {
-        // Stop speech recognition
-        if (this.realtimeTranscription) {
-            this.speechRecognition.stop();
+        try {
+            this.state = 'processing';
+            this.updateUI();
+
+            // Stop speech recognition
+            if (this.realtimeTranscription) {
+                this.speechRecognition.stop();
+            }
+
+            this.stopListeningMessages();
+
+            // Small delay to ensure all audio is captured
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Stop audio recording
+            const result = await this.audioProcessor.stopRecording();
+
+            if (!result.success) {
+                throw new Error(result.error || 'Unknown error stopping recording');
+            }
+
+            // Get transcript
+            const transcript = this.speechRecognition.getTranscript().final;
+
+            // Open save modal with default date/time name
+            this.openSaveModal(transcript, result.audioBlob);
+
+        } catch (error) {
+            console.error('Error in stopAndProcess:', error);
+            this.showError('Failed to stop recording: ' + error.message);
+            this.resetUI();
         }
-
-        // Stop audio recording
-        const result = await this.audioProcessor.stopRecording();
-
-        if (!result.success) {
-            this.showError('Failed to stop recording');
-            return;
-        }
-
-        this.stopListeningMessages();
-
-        // Get transcript
-        const transcript = this.speechRecognition.getTranscript().final;
-
-        // Open save modal
-        this.openSaveModal(transcript, result.audioBlob);
     }
 
     /**
      * Open save modal
      */
     openSaveModal(transcript, audioBlob) {
-        const session = this.sessionManager.getActiveSession();
-        this.elements.sessionName.value = session.name;
+        const now = new Date();
+        const defaultName = now.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).replace(/[/,:]/g, '-').replace(/ /g, '_');
+
+        this.elements.sessionName.value = defaultName;
         this.elements.saveModal.classList.add('open');
 
         // Store temporarily for saving
         this._tempTranscript = transcript;
         this._tempAudioBlob = audioBlob;
+
+        // Focus the input
+        setTimeout(() => this.elements.sessionName.select(), 100);
     }
 
     /**
@@ -483,11 +615,13 @@ class SpeakItApp {
         if (result.success) {
             // Update UI with session data
             this.elements.transcriptionText.textContent = result.session.transcript;
-            this.elements.transcriptionArea.classList.add('visible');
+            this.elements.transcriptionDisplay.classList.add('visible');
 
             // Show export button if session has audio
             if (result.session.audioBlob) {
                 this.showExportButton();
+            } else {
+                this.elements.exportBtn.style.display = 'none';
             }
 
             // Hide motto
@@ -546,6 +680,8 @@ class SpeakItApp {
             case 'paused':
                 centralMicBtn.classList.add('paused');
                 centralMicBtn.classList.remove('recording');
+                progressBtn.classList.add('primary');
+                progressBtnText.textContent = 'Stop and process';
                 recordingStatus.textContent = 'Paused';
                 break;
 
@@ -562,7 +698,7 @@ class SpeakItApp {
         this.state = 'idle';
         this.elements.motto.classList.remove('hidden');
         this.elements.mainBox.classList.remove('recording');
-        this.elements.transcriptionArea.classList.remove('visible');
+        this.elements.transcriptionDisplay.classList.remove('visible');
         this.elements.transcriptionText.textContent = '';
         this.elements.exportBtn.style.display = 'none';
         this.speechRecognition.clearTranscript();
@@ -576,7 +712,7 @@ class SpeakItApp {
         this.elements.transcriptionText.textContent = text;
 
         // Auto-scroll to bottom
-        this.elements.transcriptionArea.scrollTop = this.elements.transcriptionArea.scrollHeight;
+        this.elements.transcriptionDisplay.scrollTop = this.elements.transcriptionDisplay.scrollHeight;
 
         // Update session
         this.sessionManager.updateTranscript(text);
@@ -627,42 +763,12 @@ class SpeakItApp {
     }
 
     /**
-     * Open settings modal
-     */
-    openSettings() {
-        this.elements.settingsModal.classList.add('open');
-    }
-
-    /**
-     * Close settings modal
-     */
-    closeSettings() {
-        this.elements.settingsModal.classList.remove('open');
-    }
-
-    /**
-     * Open export modal
-     */
-    openExport() {
-        this.elements.exportModal.classList.add('open');
-    }
-
-    /**
-     * Close export modal
-     */
-    closeExport() {
-        this.elements.exportModal.classList.remove('open');
-    }
-
-    /**
      * Download audio
      */
     downloadAudio() {
         const result = this.sessionManager.exportAudio();
         if (!result.success) {
             this.showError(result.error);
-        } else {
-            this.closeExport();
         }
     }
 
@@ -673,8 +779,6 @@ class SpeakItApp {
         const result = this.sessionManager.exportAsText();
         if (!result.success) {
             this.showError(result.error);
-        } else {
-            this.closeExport();
         }
     }
 
@@ -686,7 +790,6 @@ class SpeakItApp {
         if (!result.success) {
             this.showError(result.error);
         } else {
-            this.closeExport();
             // Show brief success indication
             const originalText = this.elements.copyTextBtn.querySelector('span').textContent;
             this.elements.copyTextBtn.querySelector('span').textContent = 'Copied!';
@@ -706,7 +809,7 @@ class SpeakItApp {
         this.elements.sessionsList.innerHTML = '';
 
         if (sessions.length === 0) {
-            this.elements.sessionsList.innerHTML = '<p style="text-align: center; color: var(--color-text-tertiary); padding: 2rem;">No recordings yet</p>';
+            this.elements.sessionsList.innerHTML = '<p style="text-align: center; color: var(--color-text-tertiary); padding: 2rem; font-size: 0.875rem;">No recordings yet</p>';
             return;
         }
 
@@ -752,17 +855,50 @@ class SpeakItApp {
     }
 
     /**
-     * Populate microphone list
+     * Populate microphone submenu
      */
-    populateMicrophoneList(devices) {
-        this.elements.microphoneSelect.innerHTML = '';
+    populateMicrophoneSubmenu(devices) {
+        this.elements.microphoneSubmenu.innerHTML = '';
 
-        devices.forEach(device => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            option.textContent = device.label || `Microphone ${devices.indexOf(device) + 1}`;
-            this.elements.microphoneSelect.appendChild(option);
+        devices.forEach((device, index) => {
+            const item = document.createElement('div');
+            item.className = 'popup-menu-item';
+            if (index === 0) {
+                item.classList.add('selected');
+                this.currentMicrophoneId = device.deviceId;
+            }
+
+            const label = device.label || `Microphone ${index + 1}`;
+            item.innerHTML = `<span>${label}</span>`;
+            item.dataset.deviceId = device.deviceId;
+
+            item.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.switchMicrophone(device.deviceId);
+
+                // Update selection
+                this.elements.microphoneSubmenu.querySelectorAll('.popup-menu-item').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                item.classList.add('selected');
+
+                this.closeAllPopups();
+            });
+
+            this.elements.microphoneSubmenu.appendChild(item);
         });
+    }
+
+    /**
+     * Switch microphone
+     */
+    async switchMicrophone(deviceId) {
+        const result = await this.audioProcessor.switchMicrophone(deviceId);
+        if (result.success) {
+            this.currentMicrophoneId = deviceId;
+        } else {
+            this.showError('Failed to switch microphone: ' + result.error);
+        }
     }
 
     /**
@@ -792,20 +928,9 @@ class SpeakItApp {
     }
 
     /**
-     * Close all modals
-     */
-    closeAllModals() {
-        this.closeSettings();
-        this.closeExport();
-        this.closeSave();
-        this.closeConfirm();
-    }
-
-    /**
      * Show error message
      */
     showError(message) {
-        // Simple error display - you could enhance this with a toast notification
         console.error(message);
         alert(message);
     }
