@@ -35,7 +35,7 @@
     <main id="mainContent" class="main-content">
         <!-- Transcription Display Area (Top of page, like AI chat) -->
         <div id="transcriptionDisplay" class="transcription-display">
-            <div id="transcriptionText" class="transcription-text"></div>
+            <div id="transcriptionText" class="transcription-text" contenteditable="true"></div>
         </div>
 
         <!-- Motto Text -->
@@ -64,35 +64,32 @@
                 <div id="soundLevelBar" class="sound-level-bar"></div>
             </div>
 
+            <!-- Copy to Clipboard Button (Center) -->
+            <button id="copyBtn" class="copy-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>Copy to clipboard</span>
+            </button>
+
             <!-- Bottom Controls -->
             <div class="bottom-controls">
                 <!-- Settings Button (Bottom Left) -->
-                <div class="button-group-left">
-                    <button id="settingsBtn" class="icon-btn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                        </svg>
-                    </button>
-
-                    <!-- Export Button (hidden initially) -->
-                    <button id="exportBtn" class="icon-btn" style="display: none;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Progress Button (Bottom Right) -->
-                <button id="progressBtn" class="progress-btn">
-                    <svg class="progress-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <path d="M3 9h4M17 9h4M3 12h2M19 12h2M3 15h4M17 15h4" opacity="0.6"/>
+                <button id="settingsBtn" class="icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                     </svg>
-                    <span id="progressBtnText">Start voice typing</span>
+                </button>
+
+                <!-- Cancel Button (Bottom Right) -->
+                <button id="cancelBtn" class="cancel-recording-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    <span>Cancel</span>
                 </button>
             </div>
         </div>
@@ -100,14 +97,6 @@
 
     <!-- Settings Popup Menu -->
     <div id="settingsPopup" class="popup-menu">
-        <div class="popup-menu-item">
-            <span>Real-time transcription</span>
-            <label class="toggle-container">
-                <input type="checkbox" id="realtimeTranscription" checked>
-                <span class="toggle-switch"></span>
-            </label>
-        </div>
-        <div class="popup-menu-divider"></div>
         <div class="popup-menu-item">
             <span>Voice sensitivity</span>
             <div class="slider-container">
@@ -140,15 +129,14 @@
         <!-- Will be populated dynamically -->
     </div>
 
-    <!-- Export Popup Menu -->
-    <div id="exportPopup" class="popup-menu">
-        <button id="downloadAudioBtn" class="popup-menu-item">
+    <!-- Session Options Popup Menu -->
+    <div id="sessionOptionsPopup" class="popup-menu">
+        <button id="editTitleBtn" class="popup-menu-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18V5l12-2v13"/>
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="16" r="3"/>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
-            <span>Download Audio</span>
+            <span>Edit title</span>
         </button>
         <button id="downloadTextBtn" class="popup-menu-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -157,23 +145,24 @@
                 <line x1="16" y1="13" x2="8" y2="13"/>
                 <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            <span>Download Text</span>
+            <span>Save as .txt</span>
         </button>
-        <button id="copyTextBtn" class="popup-menu-item">
+        <div class="popup-menu-divider"></div>
+        <button id="deleteSessionBtn" class="popup-menu-item delete-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
-            <span>Copy to Clipboard</span>
+            <span>Delete</span>
         </button>
     </div>
 
-    <!-- Save Session Modal -->
-    <div id="saveModal" class="modal">
+    <!-- Edit Title Modal -->
+    <div id="editTitleModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Save Recording</h2>
-                <button id="closeSaveBtn" class="close-btn">
+                <h2>Edit Title</h2>
+                <button id="closeEditTitleBtn" class="close-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -181,11 +170,11 @@
                 </button>
             </div>
             <div class="modal-body">
-                <label for="sessionName">Session Name</label>
-                <input type="text" id="sessionName" placeholder="Enter session name..." class="session-name-input">
+                <label for="editSessionName">Session Name</label>
+                <input type="text" id="editSessionName" placeholder="Enter session name..." class="session-name-input">
                 <div class="modal-actions">
-                    <button id="cancelSaveBtn" class="cancel-btn">Cancel</button>
-                    <button id="confirmSaveBtn" class="confirm-btn">Save</button>
+                    <button id="cancelEditTitleBtn" class="cancel-btn">Cancel</button>
+                    <button id="confirmEditTitleBtn" class="confirm-btn">Save</button>
                 </div>
             </div>
         </div>

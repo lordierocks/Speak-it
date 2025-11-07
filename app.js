@@ -1,6 +1,6 @@
 /**
  * Speak It - Voice Typing Application
- * Main application logic
+ * Simplified version with auto-save and voice commands
  */
 
 import { AudioProcessor } from './audio-processor.js';
@@ -15,10 +15,12 @@ class SpeakItApp {
         this.sessionManager = new SessionManager();
 
         // UI state
-        this.state = 'idle'; // idle, recording, paused, processing, saved
-        this.realtimeTranscription = true;
+        this.state = 'idle'; // idle, listening, paused
         this.currentMicrophoneId = null;
         this.availableDevices = [];
+        this.lastPauseTranscript = ''; // For cancel functionality
+        this.currentEditingSessionId = null; // For three-dot menu
+        this.isTranscribing = false; // Track if currently transcribing a line
 
         // Fun listening messages
         this.listeningMessages = [
@@ -45,7 +47,7 @@ class SpeakItApp {
         this.currentMessageIndex = 0;
         this.messageInterval = null;
 
-        // DOM elements - will be initialized in init()
+        // DOM elements
         this.elements = {};
 
         // Initialize
@@ -56,10 +58,7 @@ class SpeakItApp {
      * Initialize the application
      */
     async init() {
-        // Cache DOM elements
         this.cacheElements();
-
-        // Setup event listeners
         this.setupEventListeners();
 
         // Initialize audio processor
@@ -88,13 +87,8 @@ class SpeakItApp {
             return;
         }
 
-        // Setup speech recognition callbacks
         this.setupSpeechCallbacks();
-
-        // Setup audio processor callbacks
         this.setupAudioCallbacks();
-
-        // Load existing sessions
         this.loadSessionsList();
 
         console.log('Speak It initialized successfully!');
@@ -105,61 +99,38 @@ class SpeakItApp {
      */
     cacheElements() {
         this.elements = {
-            // Main elements
             sidebar: document.getElementById('sidebar'),
             sidebarToggle: document.getElementById('sidebarToggle'),
             mainContent: document.getElementById('mainContent'),
             motto: document.getElementById('motto'),
             mainBox: document.getElementById('mainBox'),
-
-            // Buttons
             centralMicBtn: document.getElementById('centralMicBtn'),
-            progressBtn: document.getElementById('progressBtn'),
-            progressBtnText: document.getElementById('progressBtnText'),
+            copyBtn: document.getElementById('copyBtn'),
             settingsBtn: document.getElementById('settingsBtn'),
-            exportBtn: document.getElementById('exportBtn'),
+            cancelBtn: document.getElementById('cancelBtn'),
             newSessionBtn: document.getElementById('newSessionBtn'),
-
-            // Status
             recordingStatus: document.getElementById('recordingStatus'),
             micStatus: document.getElementById('micStatus'),
             soundLevelBar: document.getElementById('soundLevelBar'),
-
-            // Transcription
             transcriptionDisplay: document.getElementById('transcriptionDisplay'),
             transcriptionText: document.getElementById('transcriptionText'),
-
-            // Sessions
             sessionsList: document.getElementById('sessionsList'),
-
-            // Popup menus
             settingsPopup: document.getElementById('settingsPopup'),
-            exportPopup: document.getElementById('exportPopup'),
+            sessionOptionsPopup: document.getElementById('sessionOptionsPopup'),
             microphoneSubmenu: document.getElementById('microphoneSubmenu'),
             microphoneMenuItem: document.getElementById('microphoneMenuItem'),
-
-            // Modals
-            saveModal: document.getElementById('saveModal'),
-            confirmModal: document.getElementById('confirmModal'),
-
-            // Settings
-            realtimeTranscription: document.getElementById('realtimeTranscription'),
             vadSensitivity: document.getElementById('vadSensitivity'),
             silenceTimeout: document.getElementById('silenceTimeout'),
             silenceTimeoutValue: document.getElementById('silenceTimeoutValue'),
-
-            // Export options
-            downloadAudioBtn: document.getElementById('downloadAudioBtn'),
+            editTitleBtn: document.getElementById('editTitleBtn'),
             downloadTextBtn: document.getElementById('downloadTextBtn'),
-            copyTextBtn: document.getElementById('copyTextBtn'),
-
-            // Save modal
-            sessionName: document.getElementById('sessionName'),
-            confirmSaveBtn: document.getElementById('confirmSaveBtn'),
-            cancelSaveBtn: document.getElementById('cancelSaveBtn'),
-            closeSaveBtn: document.getElementById('closeSaveBtn'),
-
-            // Confirm modal
+            deleteSessionBtn: document.getElementById('deleteSessionBtn'),
+            editTitleModal: document.getElementById('editTitleModal'),
+            editSessionName: document.getElementById('editSessionName'),
+            confirmEditTitleBtn: document.getElementById('confirmEditTitleBtn'),
+            cancelEditTitleBtn: document.getElementById('cancelEditTitleBtn'),
+            closeEditTitleBtn: document.getElementById('closeEditTitleBtn'),
+            confirmModal: document.getElementById('confirmModal'),
             confirmTitle: document.getElementById('confirmTitle'),
             confirmMessage: document.getElementById('confirmMessage'),
             confirmActionBtn: document.getElementById('confirmActionBtn'),
@@ -171,34 +142,33 @@ class SpeakItApp {
      * Setup event listeners
      */
     setupEventListeners() {
-        // Sidebar toggle
         this.elements.sidebarToggle.addEventListener('click', () => this.toggleSidebar());
-
-        // Central microphone button
         this.elements.centralMicBtn.addEventListener('click', () => this.handleCentralMicClick());
+        this.elements.copyBtn.addEventListener('click', () => this.copyToClipboard());
+        this.elements.cancelBtn.addEventListener('click', () => this.handleCancel());
+        this.elements.newSessionBtn.addEventListener('click', () => this.handleNewSession());
 
-        // Progress button
-        this.elements.progressBtn.addEventListener('click', () => this.handleProgressBtnClick());
-
-        // Settings button - open popup
+        // Settings
         this.elements.settingsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.togglePopup(this.elements.settingsPopup, this.elements.settingsBtn);
         });
 
-        // Export button - open popup
-        this.elements.exportBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.togglePopup(this.elements.exportPopup, this.elements.exportBtn);
+        this.elements.vadSensitivity.addEventListener('input', (e) => {
+            this.audioProcessor.setVADSensitivity(e.target.value);
         });
 
-        // Microphone menu item - show submenu
-        this.elements.microphoneMenuItem.addEventListener('mouseenter', (e) => {
+        this.elements.silenceTimeout.addEventListener('input', (e) => {
+            this.elements.silenceTimeoutValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.audioProcessor.setSilenceTimeout(parseFloat(e.target.value));
+        });
+
+        // Microphone submenu
+        this.elements.microphoneMenuItem.addEventListener('mouseenter', () => {
             this.showSubmenu(this.elements.microphoneSubmenu, this.elements.microphoneMenuItem);
         });
 
-        this.elements.microphoneMenuItem.addEventListener('mouseleave', (e) => {
-            // Delay hiding to allow moving to submenu
+        this.elements.microphoneMenuItem.addEventListener('mouseleave', () => {
             setTimeout(() => {
                 if (!this.elements.microphoneSubmenu.matches(':hover') &&
                     !this.elements.microphoneMenuItem.matches(':hover')) {
@@ -215,57 +185,28 @@ class SpeakItApp {
             }, 200);
         });
 
-        // New session button
-        this.elements.newSessionBtn.addEventListener('click', () => this.handleNewSession());
+        // Session options
+        this.elements.editTitleBtn.addEventListener('click', () => this.openEditTitle());
+        this.elements.downloadTextBtn.addEventListener('click', () => this.downloadText());
+        this.elements.deleteSessionBtn.addEventListener('click', () => this.deleteSession());
 
-        // Settings changes
-        this.elements.realtimeTranscription.addEventListener('change', (e) => {
-            this.realtimeTranscription = e.target.checked;
-            this.speechRecognition.setRealtime(e.target.checked);
-        });
-
-        this.elements.vadSensitivity.addEventListener('input', (e) => {
-            this.audioProcessor.setVADSensitivity(e.target.value);
-        });
-
-        this.elements.silenceTimeout.addEventListener('input', (e) => {
-            this.elements.silenceTimeoutValue.textContent = parseFloat(e.target.value).toFixed(1);
-            this.audioProcessor.setSilenceTimeout(parseFloat(e.target.value));
-        });
-
-        // Export options
-        this.elements.downloadAudioBtn.addEventListener('click', () => {
-            this.downloadAudio();
-            this.closeAllPopups();
-        });
-
-        this.elements.downloadTextBtn.addEventListener('click', () => {
-            this.downloadText();
-            this.closeAllPopups();
-        });
-
-        this.elements.copyTextBtn.addEventListener('click', () => {
-            this.copyToClipboard();
-            this.closeAllPopups();
-        });
-
-        // Save modal
-        this.elements.confirmSaveBtn.addEventListener('click', () => this.confirmSave());
-        this.elements.cancelSaveBtn.addEventListener('click', () => this.closeSave());
-        this.elements.closeSaveBtn.addEventListener('click', () => this.closeSave());
+        // Edit title modal
+        this.elements.confirmEditTitleBtn.addEventListener('click', () => this.confirmEditTitle());
+        this.elements.cancelEditTitleBtn.addEventListener('click', () => this.closeEditTitle());
+        this.elements.closeEditTitleBtn.addEventListener('click', () => this.closeEditTitle());
 
         // Confirm modal
         this.elements.cancelConfirmBtn.addEventListener('click', () => this.closeConfirm());
 
-        // Close popups when clicking outside
+        // Close popups on outside click
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.popup-menu') && !e.target.closest('.icon-btn')) {
+            if (!e.target.closest('.popup-menu') && !e.target.closest('.icon-btn') && !e.target.closest('.session-options-btn')) {
                 this.closeAllPopups();
             }
         });
 
         // Close modals on outside click
-        [this.elements.saveModal, this.elements.confirmModal].forEach(modal => {
+        [this.elements.editTitleModal, this.elements.confirmModal].forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     modal.classList.remove('open');
@@ -287,19 +228,62 @@ class SpeakItApp {
      */
     setupSpeechCallbacks() {
         this.speechRecognition.onResult = (transcript, fullTranscript) => {
+            // Check for voice command "copy to clipboard"
+            if (this.detectCopyCommand(fullTranscript)) {
+                return; // Command handled, don't update transcription
+            }
+
+            this.isTranscribing = false;
             this.updateTranscription(fullTranscript);
+            this.autoSave(); // Auto-save after each completed line
         };
 
         this.speechRecognition.onInterimResult = (interim) => {
-            if (this.realtimeTranscription) {
-                const full = this.speechRecognition.getTranscript().combined;
-                this.updateTranscription(full);
-            }
+            this.isTranscribing = true;
+            const full = this.speechRecognition.getTranscript().combined;
+            this.updateTranscription(full, true); // true = interim (don't make editable yet)
         };
 
         this.speechRecognition.onError = (error) => {
             console.error('Speech recognition error:', error);
         };
+    }
+
+    /**
+     * Detect "copy to clipboard" voice command
+     */
+    detectCopyCommand(transcript) {
+        const lowerTranscript = transcript.toLowerCase();
+        const copyPhrases = ['copy to clipboard', 'copy clipboard', 'copy that'];
+
+        for (const phrase of copyPhrases) {
+            const index = lowerTranscript.lastIndexOf(phrase);
+            if (index !== -1) {
+                // Extract text before the command
+                const textToCopy = transcript.substring(0, index).trim();
+
+                if (textToCopy) {
+                    // Copy to clipboard
+                    this.copyTextToClipboard(textToCopy);
+
+                    // Update transcript to remove the command
+                    this.speechRecognition.clearTranscript();
+                    this.updateTranscription(textToCopy);
+                    this.autoSave();
+
+                    // Show feedback
+                    const originalText = this.elements.copyBtn.querySelector('span').textContent;
+                    this.elements.copyBtn.querySelector('span').textContent = 'Copied!';
+                    setTimeout(() => {
+                        this.elements.copyBtn.querySelector('span').textContent = originalText;
+                    }, 2000);
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -312,16 +296,456 @@ class SpeakItApp {
     }
 
     /**
+     * Handle central mic button click
+     */
+    handleCentralMicClick() {
+        if (this.state === 'idle') {
+            this.startRecording();
+        } else if (this.state === 'listening') {
+            this.pauseRecording();
+        } else if (this.state === 'paused') {
+            this.resumeRecording();
+        }
+    }
+
+    /**
+     * Start recording
+     */
+    async startRecording() {
+        try {
+            // Auto-create session with date/time name
+            const now = new Date();
+            const defaultName = now.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).replace(/[/,:]/g, '-').replace(/ /g, '_');
+
+            const session = this.sessionManager.createSession();
+            session.name = defaultName;
+            this.sessionManager.saveSession(session.name, '', null); // Save immediately
+            this.loadSessionsList();
+
+            // Hide motto
+            this.elements.motto.classList.add('hidden');
+
+            // Start audio recording
+            this.audioProcessor.startRecording();
+
+            // Start speech recognition (always real-time now)
+            this.speechRecognition.start();
+
+            // Update UI
+            this.state = 'listening';
+            this.updateUI();
+            this.elements.mainBox.classList.add('recording');
+            this.elements.transcriptionDisplay.classList.add('visible');
+            this.elements.cancelBtn.classList.add('visible');
+
+            this.startListeningMessages();
+            this.lastPauseTranscript = ''; // Reset cancel checkpoint
+
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            this.showError('Failed to start recording: ' + error.message);
+            this.resetUI();
+        }
+    }
+
+    /**
+     * Pause recording
+     */
+    pauseRecording() {
+        this.audioProcessor.pauseRecording();
+        this.speechRecognition.stop();
+
+        // Save on pause
+        this.lastPauseTranscript = this.elements.transcriptionText.textContent;
+        this.autoSave();
+
+        this.state = 'paused';
+        this.updateUI();
+        this.stopListeningMessages();
+    }
+
+    /**
+     * Resume recording
+     */
+    resumeRecording() {
+        this.audioProcessor.resumeRecording();
+        this.speechRecognition.start();
+
+        this.state = 'listening';
+        this.updateUI();
+        this.startListeningMessages();
+    }
+
+    /**
+     * Handle cancel button
+     */
+    handleCancel() {
+        if (this.lastPauseTranscript) {
+            // Revert to last pause
+            this.updateTranscription(this.lastPauseTranscript);
+            this.autoSave();
+            this.resumeRecording();
+        } else {
+            // No pause yet, delete the note
+            const activeSession = this.sessionManager.getActiveSession();
+            if (activeSession) {
+                this.sessionManager.deleteSession(activeSession.id);
+                this.loadSessionsList();
+            }
+            this.resetUI();
+        }
+    }
+
+    /**
+     * Auto-save current session
+     */
+    autoSave() {
+        const activeSession = this.sessionManager.getActiveSession();
+        if (activeSession) {
+            const transcript = this.elements.transcriptionText.textContent;
+            this.sessionManager.updateTranscript(transcript);
+        }
+    }
+
+    /**
+     * Handle new session button
+     */
+    handleNewSession() {
+        // Simply reset and start new
+        this.resetUI();
+
+        // Close sidebar on mobile
+        if (window.innerWidth < 768) {
+            this.elements.sidebar.classList.remove('open');
+            this.elements.mainContent.classList.remove('sidebar-open');
+        }
+    }
+
+    /**
+     * Load session from list
+     */
+    loadSession(sessionId) {
+        const result = this.sessionManager.loadSession(sessionId);
+
+        if (result.success) {
+            this.elements.transcriptionText.textContent = result.session.transcript;
+            this.elements.transcriptionDisplay.classList.add('visible');
+            this.elements.motto.classList.add('hidden');
+            this.loadSessionsList();
+        }
+    }
+
+    /**
+     * Update UI based on state
+     */
+    updateUI() {
+        const { centralMicBtn, recordingStatus } = this.elements;
+
+        switch (this.state) {
+            case 'idle':
+                centralMicBtn.classList.remove('recording', 'paused');
+                recordingStatus.textContent = 'Ready to start';
+                break;
+
+            case 'listening':
+                centralMicBtn.classList.add('recording');
+                centralMicBtn.classList.remove('paused');
+                recordingStatus.textContent = 'Listening...';
+                break;
+
+            case 'paused':
+                centralMicBtn.classList.add('paused');
+                centralMicBtn.classList.remove('recording');
+                recordingStatus.textContent = 'Paused';
+                break;
+        }
+    }
+
+    /**
+     * Reset UI to initial state
+     */
+    resetUI() {
+        this.state = 'idle';
+        this.elements.motto.classList.remove('hidden');
+        this.elements.mainBox.classList.remove('recording');
+        this.elements.transcriptionDisplay.classList.remove('visible');
+        this.elements.transcriptionText.textContent = '';
+        this.elements.cancelBtn.classList.remove('visible');
+        this.speechRecognition.clearTranscript();
+        this.lastPauseTranscript = '';
+        this.updateUI();
+    }
+
+    /**
+     * Update transcription text
+     */
+    updateTranscription(text, isInterim = false) {
+        this.elements.transcriptionText.textContent = text;
+
+        // Auto-scroll to bottom
+        this.elements.transcriptionDisplay.scrollTop = this.elements.transcriptionDisplay.scrollHeight;
+
+        // Make contenteditable attribute dynamic based on whether transcribing
+        if (isInterim) {
+            this.elements.transcriptionText.setAttribute('contenteditable', 'false');
+        } else {
+            this.elements.transcriptionText.setAttribute('contenteditable', 'true');
+        }
+    }
+
+    /**
+     * Update sound level bar
+     */
+    updateSoundLevel(level) {
+        this.elements.soundLevelBar.style.width = `${level}%`;
+    }
+
+    /**
+     * Update microphone status
+     */
+    updateMicStatus(status) {
+        this.elements.micStatus.textContent = status;
+    }
+
+    /**
+     * Start cycling listening messages
+     */
+    startListeningMessages() {
+        this.stopListeningMessages();
+        this.messageInterval = setInterval(() => {
+            this.currentMessageIndex = (this.currentMessageIndex + 1) % this.listeningMessages.length;
+            this.elements.recordingStatus.textContent = this.listeningMessages[this.currentMessageIndex];
+        }, 3000);
+    }
+
+    /**
+     * Stop cycling listening messages
+     */
+    stopListeningMessages() {
+        if (this.messageInterval) {
+            clearInterval(this.messageInterval);
+            this.messageInterval = null;
+        }
+        this.currentMessageIndex = 0;
+    }
+
+    /**
+     * Copy to clipboard
+     */
+    async copyToClipboard() {
+        const text = this.elements.transcriptionText.textContent;
+        await this.copyTextToClipboard(text);
+
+        const originalText = this.elements.copyBtn.querySelector('span').textContent;
+        this.elements.copyBtn.querySelector('span').textContent = 'Copied!';
+        setTimeout(() => {
+            this.elements.copyBtn.querySelector('span').textContent = originalText;
+        }, 2000);
+    }
+
+    /**
+     * Copy text to clipboard
+     */
+    async copyTextToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (error) {
+            console.error('Failed to copy to clipboard:', error);
+            this.showError('Failed to copy to clipboard');
+        }
+    }
+
+    /**
+     * Load sessions list
+     */
+    loadSessionsList() {
+        const sessions = this.sessionManager.getSessions(false);
+        const activeSession = this.sessionManager.getActiveSession();
+
+        this.elements.sessionsList.innerHTML = '';
+
+        if (sessions.length === 0) {
+            this.elements.sessionsList.innerHTML = '<p style="text-align: center; color: var(--color-text-tertiary); padding: 2rem; font-size: 0.875rem;">No recordings yet</p>';
+            return;
+        }
+
+        sessions.forEach(session => {
+            const sessionEl = document.createElement('div');
+            sessionEl.className = 'session-item';
+            if (activeSession && activeSession.id === session.id) {
+                sessionEl.classList.add('active');
+            }
+
+            const date = new Date(session.createdAt).toLocaleDateString();
+            const time = new Date(session.createdAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            sessionEl.innerHTML = `
+                <h3>${session.name}</h3>
+                <p>${date} at ${time}</p>
+                <div class="session-item-actions">
+                    <button class="session-options-btn" data-session-id="${session.id}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="1"/>
+                            <circle cx="12" cy="5" r="1"/>
+                            <circle cx="12" cy="19" r="1"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+
+            sessionEl.addEventListener('click', (e) => {
+                if (!e.target.closest('.session-options-btn')) {
+                    this.loadSession(session.id);
+                }
+            });
+
+            const optionsBtn = sessionEl.querySelector('.session-options-btn');
+            optionsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.currentEditingSessionId = session.id;
+                this.togglePopup(this.elements.sessionOptionsPopup, optionsBtn);
+            });
+
+            this.elements.sessionsList.appendChild(sessionEl);
+        });
+    }
+
+    /**
+     * Open edit title modal
+     */
+    openEditTitle() {
+        const session = this.sessionManager.getSessions(true).find(s => s.id === this.currentEditingSessionId);
+        if (session) {
+            this.elements.editSessionName.value = session.name;
+            this.elements.editTitleModal.classList.add('open');
+            setTimeout(() => this.elements.editSessionName.select(), 100);
+        }
+        this.closeAllPopups();
+    }
+
+    /**
+     * Confirm edit title
+     */
+    confirmEditTitle() {
+        const newName = this.elements.editSessionName.value.trim();
+        if (newName) {
+            const session = this.sessionManager.getSessions(true).find(s => s.id === this.currentEditingSessionId);
+            if (session) {
+                session.name = newName;
+                session.updatedAt = new Date().toISOString();
+                this.sessionManager.saveSessions();
+                this.loadSessionsList();
+            }
+        }
+        this.closeEditTitle();
+    }
+
+    /**
+     * Close edit title modal
+     */
+    closeEditTitle() {
+        this.elements.editTitleModal.classList.remove('open');
+    }
+
+    /**
+     * Download text
+     */
+    downloadText() {
+        const result = this.sessionManager.exportAsText(this.currentEditingSessionId);
+        if (!result.success) {
+            this.showError(result.error);
+        }
+        this.closeAllPopups();
+    }
+
+    /**
+     * Delete session
+     */
+    deleteSession() {
+        const session = this.sessionManager.getSessions(true).find(s => s.id === this.currentEditingSessionId);
+        if (!session) return;
+
+        this.showConfirm(
+            'Delete Session',
+            `Are you sure you want to delete "${session.name}"?`,
+            () => {
+                this.sessionManager.deleteSession(this.currentEditingSessionId);
+                this.loadSessionsList();
+
+                // If this was the active session, reset UI
+                const activeSession = this.sessionManager.getActiveSession();
+                if (!activeSession || activeSession.id === this.currentEditingSessionId) {
+                    this.resetUI();
+                }
+            }
+        );
+        this.closeAllPopups();
+    }
+
+    /**
+     * Populate microphone submenu
+     */
+    populateMicrophoneSubmenu(devices) {
+        this.elements.microphoneSubmenu.innerHTML = '';
+
+        devices.forEach((device, index) => {
+            const item = document.createElement('div');
+            item.className = 'popup-menu-item';
+            if (index === 0) {
+                item.classList.add('selected');
+                this.currentMicrophoneId = device.deviceId;
+            }
+
+            const label = device.label || `Microphone ${index + 1}`;
+            item.innerHTML = `<span>${label}</span>`;
+            item.dataset.deviceId = device.deviceId;
+
+            item.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.switchMicrophone(device.deviceId);
+
+                this.elements.microphoneSubmenu.querySelectorAll('.popup-menu-item').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                item.classList.add('selected');
+
+                this.closeAllPopups();
+            });
+
+            this.elements.microphoneSubmenu.appendChild(item);
+        });
+    }
+
+    /**
+     * Switch microphone
+     */
+    async switchMicrophone(deviceId) {
+        const result = await this.audioProcessor.switchMicrophone(deviceId);
+        if (result.success) {
+            this.currentMicrophoneId = deviceId;
+        } else {
+            this.showError('Failed to switch microphone: ' + result.error);
+        }
+    }
+
+    /**
      * Toggle popup menu
      */
     togglePopup(popup, button) {
         const isOpen = popup.classList.contains('open');
-
-        // Close all popups first
         this.closeAllPopups();
 
         if (!isOpen) {
-            // Position popup below button
             const rect = button.getBoundingClientRect();
             popup.style.top = `${rect.bottom + 8}px`;
             popup.style.left = `${rect.left}px`;
@@ -359,7 +783,7 @@ class SpeakItApp {
      * Close all modals
      */
     closeAllModals() {
-        this.closeSave();
+        this.closeEditTitle();
         this.closeConfirm();
     }
 
@@ -372,572 +796,6 @@ class SpeakItApp {
     }
 
     /**
-     * Handle central mic button click
-     */
-    handleCentralMicClick() {
-        if (this.state === 'idle') {
-            this.startRecording();
-        } else if (this.state === 'recording') {
-            this.pauseRecording();
-        } else if (this.state === 'paused') {
-            this.resumeRecording();
-        }
-    }
-
-    /**
-     * Handle progress button click
-     */
-    async handleProgressBtnClick() {
-        if (this.state === 'idle') {
-            this.startRecording();
-        } else if (this.state === 'recording' || this.state === 'paused') {
-            this.stopAndProcess();
-        } else if (this.state === 'saved') {
-            // Copy to clipboard
-            await this.copyTranscriptFromProgressBtn();
-        }
-    }
-
-    /**
-     * Start recording
-     */
-    async startRecording() {
-        try {
-            // Create new session
-            this.sessionManager.createSession();
-
-            // Hide motto
-            this.elements.motto.classList.add('hidden');
-
-            // Start audio recording
-            const audioResult = this.audioProcessor.startRecording();
-            if (!audioResult.success) {
-                throw new Error('Failed to start audio recording');
-            }
-
-            // Start speech recognition if real-time is enabled
-            if (this.realtimeTranscription) {
-                const speechResult = this.speechRecognition.start();
-                if (!speechResult.success) {
-                    console.warn('Speech recognition failed to start:', speechResult.error);
-                }
-            }
-
-            // Update UI state
-            this.state = 'recording';
-            this.updateUI();
-
-            // Move main box to bottom
-            this.elements.mainBox.classList.add('recording');
-
-            // Show transcription area
-            this.elements.transcriptionDisplay.classList.add('visible');
-
-            // Start cycling listening messages
-            this.startListeningMessages();
-
-        } catch (error) {
-            console.error('Error starting recording:', error);
-            this.showError('Failed to start recording: ' + error.message);
-            this.resetUI();
-        }
-    }
-
-    /**
-     * Pause recording
-     */
-    pauseRecording() {
-        this.audioProcessor.pauseRecording();
-
-        if (this.realtimeTranscription) {
-            this.speechRecognition.stop();
-        }
-
-        this.state = 'paused';
-        this.updateUI();
-        this.stopListeningMessages();
-    }
-
-    /**
-     * Resume recording
-     */
-    resumeRecording() {
-        this.audioProcessor.resumeRecording();
-
-        if (this.realtimeTranscription) {
-            this.speechRecognition.start();
-        }
-
-        this.state = 'recording';
-        this.updateUI();
-        this.startListeningMessages();
-    }
-
-    /**
-     * Stop and process recording
-     */
-    async stopAndProcess() {
-        try {
-            this.state = 'processing';
-            this.updateUI();
-
-            // Stop speech recognition
-            if (this.realtimeTranscription) {
-                this.speechRecognition.stop();
-            }
-
-            this.stopListeningMessages();
-
-            // Small delay to ensure all audio is captured
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Stop audio recording
-            const result = await this.audioProcessor.stopRecording();
-
-            if (!result.success) {
-                throw new Error(result.error || 'Unknown error stopping recording');
-            }
-
-            // Get transcript
-            const transcript = this.speechRecognition.getTranscript().final;
-
-            // Open save modal with default date/time name
-            this.openSaveModal(transcript, result.audioBlob);
-
-        } catch (error) {
-            console.error('Error in stopAndProcess:', error);
-            this.showError('Failed to stop recording: ' + error.message);
-            this.resetUI();
-        }
-    }
-
-    /**
-     * Open save modal
-     */
-    openSaveModal(transcript, audioBlob) {
-        const now = new Date();
-        const defaultName = now.toLocaleString('en-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        }).replace(/[/,:]/g, '-').replace(/ /g, '_');
-
-        this.elements.sessionName.value = defaultName;
-        this.elements.saveModal.classList.add('open');
-
-        // Store temporarily for saving
-        this._tempTranscript = transcript;
-        this._tempAudioBlob = audioBlob;
-
-        // Focus the input
-        setTimeout(() => this.elements.sessionName.select(), 100);
-    }
-
-    /**
-     * Confirm save
-     */
-    confirmSave() {
-        const name = this.elements.sessionName.value.trim() || 'Untitled Recording';
-
-        // Save session
-        const result = this.sessionManager.saveSession(
-            name,
-            this._tempTranscript,
-            this._tempAudioBlob
-        );
-
-        if (result.success) {
-            this.closeSave();
-            this.loadSessionsList();
-            this.showExportButton();
-
-            // Update state to saved (shows copy to clipboard button)
-            this.state = 'saved';
-            this.updateUI();
-        } else {
-            this.showError(result.error);
-        }
-    }
-
-    /**
-     * Close save modal
-     */
-    closeSave() {
-        this.elements.saveModal.classList.remove('open');
-        this._tempTranscript = null;
-        this._tempAudioBlob = null;
-
-        // If canceling (state is still 'processing'), reset to idle
-        if (this.state === 'processing') {
-            this.resetUI();
-        }
-    }
-
-    /**
-     * Handle new session button
-     */
-    handleNewSession() {
-        if (this.sessionManager.hasUnsavedAudio()) {
-            this.showConfirm(
-                'Start New Recording',
-                `Starting a new session will automatically archive the current session. Any unsaved audio will be lost. Continue?`,
-                () => {
-                    this.startNewSession();
-                }
-            );
-        } else {
-            this.startNewSession();
-        }
-    }
-
-    /**
-     * Start new session
-     */
-    startNewSession() {
-        // Archive current session if exists
-        const activeSession = this.sessionManager.getActiveSession();
-        if (activeSession) {
-            this.sessionManager.archiveSession(activeSession.id);
-            this.loadSessionsList();
-        }
-
-        // Reset UI
-        this.resetUI();
-
-        // Close sidebar on mobile
-        if (window.innerWidth < 768) {
-            this.elements.sidebar.classList.remove('open');
-            this.elements.mainContent.classList.remove('sidebar-open');
-        }
-    }
-
-    /**
-     * Load session from list
-     */
-    loadSession(sessionId) {
-        const result = this.sessionManager.loadSession(sessionId);
-
-        if (result.success) {
-            // Update UI with session data
-            this.elements.transcriptionText.textContent = result.session.transcript;
-            this.elements.transcriptionDisplay.classList.add('visible');
-
-            // Show export button if session has audio
-            if (result.session.audioBlob) {
-                this.showExportButton();
-            } else {
-                this.elements.exportBtn.style.display = 'none';
-            }
-
-            // Hide motto
-            this.elements.motto.classList.add('hidden');
-
-            // Set state to saved (shows copy to clipboard button)
-            this.state = 'saved';
-            this.updateUI();
-
-            // Update sessions list
-            this.loadSessionsList();
-        }
-    }
-
-    /**
-     * Archive session
-     */
-    archiveSessionWithConfirm(sessionId) {
-        const session = this.sessionManager.getSessions(true).find(s => s.id === sessionId);
-        if (!session) return;
-
-        this.showConfirm(
-            'Archive Session',
-            `Are you sure you want to archive "${session.name}"? Any unsaved audio will be lost.`,
-            () => {
-                this.sessionManager.archiveSession(sessionId);
-                this.loadSessionsList();
-
-                // If this was the active session, reset UI
-                const activeSession = this.sessionManager.getActiveSession();
-                if (!activeSession || activeSession.id === sessionId) {
-                    this.resetUI();
-                }
-            }
-        );
-    }
-
-    /**
-     * Update UI based on state
-     */
-    updateUI() {
-        const { centralMicBtn, progressBtn, progressBtnText, recordingStatus } = this.elements;
-
-        switch (this.state) {
-            case 'idle':
-                centralMicBtn.classList.remove('recording', 'paused');
-                progressBtn.classList.remove('primary');
-                progressBtnText.textContent = 'Start voice typing';
-                recordingStatus.textContent = 'Ready to start';
-                break;
-
-            case 'recording':
-                centralMicBtn.classList.add('recording');
-                centralMicBtn.classList.remove('paused');
-                progressBtn.classList.add('primary');
-                progressBtnText.textContent = 'Stop and process';
-                recordingStatus.textContent = 'Recording...';
-                break;
-
-            case 'paused':
-                centralMicBtn.classList.add('paused');
-                centralMicBtn.classList.remove('recording');
-                progressBtn.classList.add('primary');
-                progressBtnText.textContent = 'Stop and process';
-                recordingStatus.textContent = 'Paused';
-                break;
-
-            case 'processing':
-                recordingStatus.textContent = 'Processing...';
-                break;
-
-            case 'saved':
-                centralMicBtn.classList.remove('recording', 'paused');
-                progressBtn.classList.remove('primary');
-                progressBtnText.textContent = 'Copy to clipboard';
-                recordingStatus.textContent = 'Saved';
-                break;
-        }
-    }
-
-    /**
-     * Reset UI to initial state
-     */
-    resetUI() {
-        this.state = 'idle';
-        this.elements.motto.classList.remove('hidden');
-        this.elements.mainBox.classList.remove('recording');
-        this.elements.transcriptionDisplay.classList.remove('visible');
-        this.elements.transcriptionText.textContent = '';
-        this.elements.exportBtn.style.display = 'none';
-        this.speechRecognition.clearTranscript();
-        this.updateUI();
-    }
-
-    /**
-     * Update transcription text
-     */
-    updateTranscription(text) {
-        this.elements.transcriptionText.textContent = text;
-
-        // Auto-scroll to bottom
-        this.elements.transcriptionDisplay.scrollTop = this.elements.transcriptionDisplay.scrollHeight;
-
-        // Update session
-        this.sessionManager.updateTranscript(text);
-    }
-
-    /**
-     * Update sound level bar
-     */
-    updateSoundLevel(level) {
-        this.elements.soundLevelBar.style.width = `${level}%`;
-    }
-
-    /**
-     * Update microphone status
-     */
-    updateMicStatus(status) {
-        this.elements.micStatus.textContent = status;
-    }
-
-    /**
-     * Start cycling listening messages
-     */
-    startListeningMessages() {
-        this.stopListeningMessages();
-
-        this.messageInterval = setInterval(() => {
-            this.currentMessageIndex = (this.currentMessageIndex + 1) % this.listeningMessages.length;
-            this.elements.recordingStatus.textContent = this.listeningMessages[this.currentMessageIndex];
-        }, 3000);
-    }
-
-    /**
-     * Stop cycling listening messages
-     */
-    stopListeningMessages() {
-        if (this.messageInterval) {
-            clearInterval(this.messageInterval);
-            this.messageInterval = null;
-        }
-        this.currentMessageIndex = 0;
-    }
-
-    /**
-     * Show export button
-     */
-    showExportButton() {
-        this.elements.exportBtn.style.display = 'flex';
-    }
-
-    /**
-     * Download audio
-     */
-    downloadAudio() {
-        const result = this.sessionManager.exportAudio();
-        if (!result.success) {
-            this.showError(result.error);
-        }
-    }
-
-    /**
-     * Download text
-     */
-    downloadText() {
-        const result = this.sessionManager.exportAsText();
-        if (!result.success) {
-            this.showError(result.error);
-        }
-    }
-
-    /**
-     * Copy to clipboard (from export menu)
-     */
-    async copyToClipboard() {
-        const result = await this.sessionManager.copyToClipboard();
-        if (!result.success) {
-            this.showError(result.error);
-        } else {
-            // Show brief success indication
-            const originalText = this.elements.copyTextBtn.querySelector('span').textContent;
-            this.elements.copyTextBtn.querySelector('span').textContent = 'Copied!';
-            setTimeout(() => {
-                this.elements.copyTextBtn.querySelector('span').textContent = originalText;
-            }, 2000);
-        }
-    }
-
-    /**
-     * Copy transcript from progress button
-     */
-    async copyTranscriptFromProgressBtn() {
-        const result = await this.sessionManager.copyToClipboard();
-        if (!result.success) {
-            this.showError(result.error);
-        } else {
-            // Show brief success indication on the progress button
-            const originalText = this.elements.progressBtnText.textContent;
-            this.elements.progressBtnText.textContent = 'Copied!';
-            setTimeout(() => {
-                this.elements.progressBtnText.textContent = originalText;
-            }, 2000);
-        }
-    }
-
-    /**
-     * Load sessions list
-     */
-    loadSessionsList() {
-        const sessions = this.sessionManager.getSessions(false);
-        const activeSession = this.sessionManager.getActiveSession();
-
-        this.elements.sessionsList.innerHTML = '';
-
-        if (sessions.length === 0) {
-            this.elements.sessionsList.innerHTML = '<p style="text-align: center; color: var(--color-text-tertiary); padding: 2rem; font-size: 0.875rem;">No recordings yet</p>';
-            return;
-        }
-
-        sessions.forEach(session => {
-            const sessionEl = document.createElement('div');
-            sessionEl.className = 'session-item';
-            if (activeSession && activeSession.id === session.id) {
-                sessionEl.classList.add('active');
-            }
-
-            const date = new Date(session.createdAt).toLocaleDateString();
-            const time = new Date(session.createdAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-
-            sessionEl.innerHTML = `
-                <h3>${session.name}</h3>
-                <p>${date} at ${time}</p>
-                <div class="session-item-actions">
-                    <button class="archive-btn" data-session-id="${session.id}">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>
-                        </svg>
-                    </button>
-                </div>
-            `;
-
-            sessionEl.addEventListener('click', (e) => {
-                if (!e.target.closest('.archive-btn')) {
-                    this.loadSession(session.id);
-                }
-            });
-
-            const archiveBtn = sessionEl.querySelector('.archive-btn');
-            archiveBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.archiveSessionWithConfirm(session.id);
-            });
-
-            this.elements.sessionsList.appendChild(sessionEl);
-        });
-    }
-
-    /**
-     * Populate microphone submenu
-     */
-    populateMicrophoneSubmenu(devices) {
-        this.elements.microphoneSubmenu.innerHTML = '';
-
-        devices.forEach((device, index) => {
-            const item = document.createElement('div');
-            item.className = 'popup-menu-item';
-            if (index === 0) {
-                item.classList.add('selected');
-                this.currentMicrophoneId = device.deviceId;
-            }
-
-            const label = device.label || `Microphone ${index + 1}`;
-            item.innerHTML = `<span>${label}</span>`;
-            item.dataset.deviceId = device.deviceId;
-
-            item.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.switchMicrophone(device.deviceId);
-
-                // Update selection
-                this.elements.microphoneSubmenu.querySelectorAll('.popup-menu-item').forEach(el => {
-                    el.classList.remove('selected');
-                });
-                item.classList.add('selected');
-
-                this.closeAllPopups();
-            });
-
-            this.elements.microphoneSubmenu.appendChild(item);
-        });
-    }
-
-    /**
-     * Switch microphone
-     */
-    async switchMicrophone(deviceId) {
-        const result = await this.audioProcessor.switchMicrophone(deviceId);
-        if (result.success) {
-            this.currentMicrophoneId = deviceId;
-        } else {
-            this.showError('Failed to switch microphone: ' + result.error);
-        }
-    }
-
-    /**
      * Show confirm dialog
      */
     showConfirm(title, message, onConfirm) {
@@ -945,7 +803,6 @@ class SpeakItApp {
         this.elements.confirmMessage.textContent = message;
         this.elements.confirmModal.classList.add('open');
 
-        // Remove old listener and add new one
         const newConfirmBtn = this.elements.confirmActionBtn.cloneNode(true);
         this.elements.confirmActionBtn.parentNode.replaceChild(newConfirmBtn, this.elements.confirmActionBtn);
         this.elements.confirmActionBtn = newConfirmBtn;
