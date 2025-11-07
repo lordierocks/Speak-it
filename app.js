@@ -15,7 +15,7 @@ class SpeakItApp {
         this.sessionManager = new SessionManager();
 
         // UI state
-        this.state = 'idle'; // idle, recording, paused, processing
+        this.state = 'idle'; // idle, recording, paused, processing, saved
         this.realtimeTranscription = true;
         this.currentMicrophoneId = null;
         this.availableDevices = [];
@@ -387,11 +387,14 @@ class SpeakItApp {
     /**
      * Handle progress button click
      */
-    handleProgressBtnClick() {
+    async handleProgressBtnClick() {
         if (this.state === 'idle') {
             this.startRecording();
         } else if (this.state === 'recording' || this.state === 'paused') {
             this.stopAndProcess();
+        } else if (this.state === 'saved') {
+            // Copy to clipboard
+            await this.copyTranscriptFromProgressBtn();
         }
     }
 
@@ -551,8 +554,8 @@ class SpeakItApp {
             this.loadSessionsList();
             this.showExportButton();
 
-            // Update state but keep session active
-            this.state = 'idle';
+            // Update state to saved (shows copy to clipboard button)
+            this.state = 'saved';
             this.updateUI();
         } else {
             this.showError(result.error);
@@ -566,6 +569,11 @@ class SpeakItApp {
         this.elements.saveModal.classList.remove('open');
         this._tempTranscript = null;
         this._tempAudioBlob = null;
+
+        // If canceling (state is still 'processing'), reset to idle
+        if (this.state === 'processing') {
+            this.resetUI();
+        }
     }
 
     /**
@@ -627,6 +635,10 @@ class SpeakItApp {
             // Hide motto
             this.elements.motto.classList.add('hidden');
 
+            // Set state to saved (shows copy to clipboard button)
+            this.state = 'saved';
+            this.updateUI();
+
             // Update sessions list
             this.loadSessionsList();
         }
@@ -687,6 +699,13 @@ class SpeakItApp {
 
             case 'processing':
                 recordingStatus.textContent = 'Processing...';
+                break;
+
+            case 'saved':
+                centralMicBtn.classList.remove('recording', 'paused');
+                progressBtn.classList.remove('primary');
+                progressBtnText.textContent = 'Copy to clipboard';
+                recordingStatus.textContent = 'Saved';
                 break;
         }
     }
@@ -783,7 +802,7 @@ class SpeakItApp {
     }
 
     /**
-     * Copy to clipboard
+     * Copy to clipboard (from export menu)
      */
     async copyToClipboard() {
         const result = await this.sessionManager.copyToClipboard();
@@ -795,6 +814,23 @@ class SpeakItApp {
             this.elements.copyTextBtn.querySelector('span').textContent = 'Copied!';
             setTimeout(() => {
                 this.elements.copyTextBtn.querySelector('span').textContent = originalText;
+            }, 2000);
+        }
+    }
+
+    /**
+     * Copy transcript from progress button
+     */
+    async copyTranscriptFromProgressBtn() {
+        const result = await this.sessionManager.copyToClipboard();
+        if (!result.success) {
+            this.showError(result.error);
+        } else {
+            // Show brief success indication on the progress button
+            const originalText = this.elements.progressBtnText.textContent;
+            this.elements.progressBtnText.textContent = 'Copied!';
+            setTimeout(() => {
+                this.elements.progressBtnText.textContent = originalText;
             }, 2000);
         }
     }
